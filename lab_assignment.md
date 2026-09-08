@@ -12,19 +12,25 @@ shape. Your decisions should reflect that. Refer to
 [the rubric](./lab_assignment_grading_rubric.md) for what each
 stage needs to earn full marks.
 
-## Assigned Datasets for Regression
+## Assigned Synthetic Datasets for Regression
 
-| Dataset                                                               | Group                     | Context                                                           | Target to Predict                    |
-|-----------------------------------------------------------------------|---------------------------|-------------------------------------------------------------------|--------------------------------------|
-| [`real_estate_rental_price.csv`](./data/real_estate_rental_price.csv) | A                         | Monthly rental listings across Nairobi-area neighborhoods         | `monthly_rent_kes`                   |
-| [`retail_daily_sales.csv`](./data/retail_daily_sales.csv)             | C                         | Daily performance of retail stores of varying format and location | `daily_sales_revenue_kes`            |
-| [`marketing_campaign_roi.csv`](./data/marketing_campaign_roi.csv)     | Not assigned to any group | Digital ad campaigns across platforms and objectives              | `campaign_roi_pct` (can be negative) |
-| [`farm_annual_income.csv`](./data/farm_annual_income.csv)             | D                         | Smallholder and commercial farm operations across counties        | `annual_farm_income_kes`             |
-| [`student_exam_score.csv`](./data/student_exam_score.csv)             | B                         | Student study habits, background, and support factors             | `final_exam_score` (bounded 0–100)   |
+| Dataset                                                               | Group                       | Context                                                           | Target to Predict                    |
+|-----------------------------------------------------------------------|-----------------------------|-------------------------------------------------------------------|--------------------------------------|
+| [`real_estate_rental_price.csv`](./data/real_estate_rental_price.csv) | A                           | Monthly rental listings across Nairobi-area neighborhoods         | `monthly_rent_kes`                   |
+| [`retail_daily_sales.csv`](./data/retail_daily_sales.csv)             | C                           | Daily performance of retail stores of varying format and location | `daily_sales_revenue_kes`            |
+| [`marketing_campaign_roi.csv`](./data/marketing_campaign_roi.csv)     | _Not assigned to any group_ | Digital ad campaigns across platforms and objectives              | `campaign_roi_pct` (can be negative) |
+| [`farm_annual_income.csv`](./data/farm_annual_income.csv)             | D                           | Smallholder and commercial farm operations across counties        | `annual_farm_income_kes`             |
+| [`student_exam_score.csv`](./data/student_exam_score.csv)             | B                           | Student study habits, background, and support factors             | `final_exam_score` (bounded 0–100)   |
 
-## Assigned Datasets for Classification
+## Assigned Synthetic Datasets for Classification
 
-*Coming soon... Tip: do not let the work pile up.*
+| Dataset                                                                       | Group                       | Context                                                        | Target to Predict        | Classes                        |
+|-------------------------------------------------------------------------------|-----------------------------|----------------------------------------------------------------|--------------------------|--------------------------------|
+| [`telecom_customer_churn.csv`](./data/telecom_customer_churn.csv)             | _Not assigned to any group_ | Predicting which telecom subscribers will cancel their service | `churn`                  | Yes / No                       |
+| [`insurance_claim_fraud.csv`](./data/insurance_claim_fraud.csv)               | B                           | Flagging potentially fraudulent insurance claims               | `claim_status`           | Fraudulent / Legitimate        |
+| [`employee_attrition.csv`](./data/employee_attrition.csv)                     | A                           | Predicting which employees are at risk of leaving              | `attrition`              | Yes / No                       |
+| [`invoice_payment_risk.csv`](./data/invoice_payment_risk.csv)                 | D                           | Assessing how likely a B2B client is to pay an invoice late    | `payment_risk_category`  | On-Time / Late / Severely Late |
+| [`corporate_financial_distress.csv`](./data/corporate_financial_distress.csv) | C                           | Assessing a company's financial health from its accounts       | `distress_risk_category` | Healthy / Watch / Distressed   |
 
 **Beyond the notebook**, every group member should individually complete:
 - A 2-3-minute one-on-one conversation (defense) where you will be asked
@@ -32,10 +38,10 @@ stage needs to earn full marks.
   group's notebook. Note that this is not necessarily only the part you
   personally coded; you are expected to understand the entire group submission
   (the whole notebook).
-- A **private** peer-contribution rating of your teammates. This will adjust each
-  teammate's final grade according to their group contribution.
+- A **private** peer-contribution rating of your teammates. This will adjust
+  each teammate's final grade according to their group contribution.
 
 **Logistics**:
 - Groups of 5, as assigned from Business Intelligence 1.
-- Use the dataset that has been assigned to your group. Do not substitute it with
-  a different dataset.
+- Use the dataset that has been assigned to your group. Do not substitute it
+  with a different dataset.
