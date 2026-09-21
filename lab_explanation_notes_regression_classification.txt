@@ -1,0 +1,482 @@
+LAB EXPLANATION NOTES (REGRESSION + CLASSIFICATION)
+Group B / B1 - Quick Defense Guide
+
+Date prepared: 2026-09-21
+Project: RegressionAndClassification
+
+==================================================
+1) WHAT THIS LAB IS ABOUT
+==================================================
+This lab applies the full machine learning workflow to two tasks:
+
+1. Regression task:
+   - Dataset: data/student_exam_score.csv
+   - Target: final_exam_score
+   - Goal: predict a student's final exam score (0-100).
+
+2. Classification task:
+   - Dataset: data/insurance_claim_fraud.csv
+   - Target: claim_status
+   - Classes: Legitimate / Fraudulent
+   - Goal: detect potentially fraudulent insurance claims.
+
+The key theme in both notebooks is leakage-safe modeling: split first, then do feature work and preprocessing only on training data.
+
+==================================================
+2) WHAT WAS DONE - REGRESSION NOTEBOOK
+==================================================
+Notebook: GroupB_Regression_StudentExamScore.ipynb
+
+A. Setup and data loading
+- Loaded required libraries (numpy, pandas, matplotlib, seaborn, sklearn).
+- Set random_state = 42 for reproducibility.
+- Loaded dataset and confirmed shape/target.
+
+B. EDA (exploratory data analysis)
+- Identified numeric and categorical columns.
+- Computed summary stats (min, quartiles, mean, std, skewness, IQR).
+- Plotted:
+  - target distribution (final_exam_score)
+  - attendance_rate_pct vs final_exam_score.
+- Key insight: target had negative skew.
+
+C. Train/test split (before modeling)
+- Used 80/20 split.
+- Used stratified split via score bins (qcut bins on target) to preserve score distribution across train and test.
+- Reason: prevent data leakage and keep test set unseen until evaluation stage.
+
+D. Feature selection / screening
+- Removed identifier (student_id).
+- Checked multicollinearity using VIF on training numeric features only.
+- Imputed temporary values only for VIF diagnostic where needed.
+- Decision: retained functional predictors (no harmful collinearity inflation found).
+
+E. Preprocessing pipeline
+- Handled structural missingness separately:
+  - part_time_job_hours_per_week missing means no part-time job -> imputed as 0.
+- Handled ordinary missingness (for example previous_gpa) using median imputation.
+- Encoded categorical features:
+  - Nominal -> one-hot encoding.
+  - Ordinal (parental_education_level) -> ordinal encoding with explicit order.
+- Combined all transformations using ColumnTransformer.
+
+F. Target transformation
+- Applied Yeo-Johnson transform to target using training data only.
+- Why Yeo-Johnson: robust for non-normal/skewed targets and handles wider value ranges than Box-Cox constraints.
+- Visualized before/after skewness and showed skew reduction.
+
+G. Model comparison with cross-validation
+- Candidate models included:
+  - Linear Regression
+  - Ridge
+  - Lasso
+  - Elastic Net
+  - KNN Regressor
+  - Random Forest Regressor
+  - Gradient Boosting Regressor
+- Used 5-fold CV on training set only.
+- Used RMSE, MAE, and R2 metrics.
+- Used a single leakage-safe pipeline (preprocessor + model), wrapped with transformed target handling inside CV.
+- Produced leaderboard and bar chart of CV RMSE (with std) for stability comparison.
+
+H. Regression diagnostics
+- Selected Ridge as the best model from cross-validation and refit it on all 680 training rows.
+- Predicted the 170 held-out test rows and calculated residuals:
+  residual = actual score - predicted score.
+- Used a residual plot, Q-Q plot, Breusch-Pagan test, and Shapiro-Wilk test.
+- Reported results:
+  - Held-out test RMSE: 6.698 score points.
+  - Mean residual: 0.375, indicating little average bias.
+  - Breusch-Pagan p-value: 0.0017, giving evidence of non-constant variance.
+  - Shapiro-Wilk p-value: 0.0002, giving evidence that residuals are not perfectly normal.
+- Interpretation: the model is useful, but its errors are not identical across the score range, so predictions should be treated as estimates rather than exact marks.
+
+I. Held-out test evaluation and model selection
+- Retrained every candidate model on the complete training set and evaluated each one once on the untouched test set.
+- Used test RMSE, test MAE, and test R2.
+- Main test results:
+  - Linear Regression: RMSE 6.697, MAE 5.228, R2 0.467.
+  - Lasso: RMSE 6.697, MAE 5.228, R2 0.467.
+  - Ridge: RMSE 6.698, MAE 5.229, R2 0.467.
+  - Elastic Net: RMSE 7.021, MAE 5.479, R2 0.414.
+  - Gradient Boosting: RMSE 7.079, MAE 5.554, R2 0.404.
+  - Random Forest: RMSE 7.359, MAE 5.872, R2 0.356.
+  - KNN: RMSE 8.087, MAE 6.419, R2 0.222.
+- The top three linear models were effectively tied. Ridge was selected because it was the strongest cross-validation choice and L2 regularization is more stable when predictors become correlated.
+- Interpretation: an RMSE of about 6.7 means predictions are typically about 6-7 exam-score points away from the actual result. R2 of about 0.47 means the observable predictors explain roughly 47% of score variation.
+
+J. Hyperparameter tuning
+- Tuned Ridge's alpha parameter, which controls the strength of L2 regularization.
+- Used RandomizedSearchCV with 40 random alpha values from 0.001 to 1000 on a log scale, the same 5-fold KFold scheme, and negative RMSE as the search score.
+- Best alpha found: approximately 24.6583.
+- Compared tuned and untuned Ridge on the same held-out test set.
+- The tuned test RMSE was about 6.718 compared with 6.698 for untuned Ridge, so tuning did not improve this particular holdout. This shows that the default model was already close to adequate and that a larger alpha did not generalize better here.
+
+K. Explainability
+- Used three complementary methods on the final tuned Ridge model:
+  1. Standardized Ridge coefficients: direction and relative size of each encoded feature's effect.
+  2. SHAP values: contribution of each feature to individual predictions and overall feature influence.
+  3. Permutation importance: increase in test RMSE when a feature is randomly shuffled.
+- The methods generally pointed to previous GPA, attendance rate, and study hours as important predictors.
+- Partial dependence plots for previous_gpa and study_hours_per_week were used as a linearity sanity check.
+- Coefficients are on the transformed target scale, so they show direction and relative influence rather than direct raw-mark increases.
+
+L. Model persistence and new predictions
+- Saved the complete fitted TransformedTargetRegressor with joblib, including preprocessing, the Yeo-Johnson target transformation, and the final Ridge estimator.
+- Reloaded the saved model and predicted new student records.
+- Example predictions from the notebook:
+  - A strong student profile: 97.4 predicted marks.
+  - A weaker profile with a missing job-hours value: 74.5 predicted marks.
+- An extreme profile produced a raw prediction of 117.9. Since exam scores must be between 0 and 100, the displayed prediction was clipped to 100.
+- Saving the full pipeline is important because future inputs must receive exactly the same transformations used during training.
+
+M. Limitations and responsible use
+- The held-out R2 of about 0.47 means around half of score variation is unexplained by the available variables.
+- Important unobserved factors may include exam difficulty, short-term personal events, motivation, and performance on the exam itself.
+- Evidence of heteroscedasticity means prediction uncertainty is not uniform across all score levels.
+- The model should support academic advising and early intervention, not replace professional judgment or make high-stakes decisions by itself.
+
+==================================================
+3A) READY-TO-SAY DEFENSE ANSWERS
+==================================================
+
+Q: Which was your best regression model?
+A: Ridge Regression was our selected regression model. Linear Regression, Lasso, and 
+Ridge produced almost identical held-out results, but Ridge was the best cross-validation 
+choice and adds L2 regularization. That makes it a more stable and defensible choice if 
+predictors become more correlated in future data. Its held-out results were approximately 
+RMSE 6.698, MAE 5.229, and R2 0.467.
+
+Q: Why did you not simply choose Linear Regression, since it had the lowest test RMSE?
+A: The difference was only about 0.001, so the three models were effectively tied for 
+this 170-row test set. I chose Ridge because it performed strongly during 
+cross-validation and regularization can reduce coefficient instability. I would not claim 
+that Ridge was dramatically more accurate; the choice was based on stability and 
+defensibility.
+
+Q: Did hyperparameter tuning improve the model?
+A: No significant improvement was observed. RandomizedSearchCV found an alpha of 
+approximately 24.6583, but tuned Ridge had a test RMSE of about 6.718 compared with 
+6.698 for untuned Ridge. This suggests the default alpha of 1.0 was already adequate for
+this dataset. Tuning was still useful because it tested that assumption systematically 
+rather than guessing.
+
+Q: Give the best model's performance in plain language.
+A: On unseen test data, the model was usually about 6.7 marks away from the actual final 
+exam score. Its R2 of 0.467 means it explained about 46.7% of the variation in scores. 
+The remaining variation likely comes from factors that were not measured in the dataset.
+
+Q: Why did you use RMSE, MAE, and R2 together?
+A: RMSE penalizes large errors more heavily, MAE gives the average absolute error in 
+score points, and R2 describes the proportion of variation explained. Together they 
+show error size, sensitivity to large mistakes, and overall explanatory power.
+
+Q: Why was Ridge appropriate for this data?
+A: Ridge is still a linear model, which fits the fact that the linear models performed 
+best. Its L2 penalty shrinks large coefficients and helps control instability without 
+removing features completely. This is useful after one-hot encoding, where several 
+related encoded columns can exist.
+
+Q: What did your diagnostics reveal?
+A: The mean residual was close to zero, so there was little overall bias. However, the 
+Breusch-Pagan p-value of 0.0017 suggested non-constant error variance, and the 
+Shapiro-Wilk p-value of 0.0002 suggested residuals were not perfectly normal. 
+Therefore, the model is useful but its uncertainty is not identical for every student 
+or score range.
+
+Q: What is the most important predictor?
+A: The explainability methods generally pointed to previous GPA, attendance rate, 
+and study hours as important predictors. I would describe these as influential 
+predictors, not proof that they independently cause the final score, because the model 
+identifies associations from observational data.
+
+Q: Why did you use three explainability methods?
+A: Coefficients show the direction and relative size of effects in the transformed 
+eature space. SHAP explains contributions to individual predictions and the overall 
+model. Permutation importance measures how much performance worsens when a feature is 
+shuffled. Agreement across methods gives more confidence than relying on one explanation 
+method.
+
+Q: Why did you save the complete pipeline?
+A: The saved object includes imputation, encoding, scaling, the Yeo-Johnson target 
+transformation, and Ridge. Saving only the estimator would not be enough because new 
+data must undergo exactly the same transformations as the training data.
+
+Q: Why can the model predict a score above 100?
+A: Ridge is not naturally restricted to the 0-100 target range. The notebook therefore 
+clips displayed predictions to that valid range. The raw prediction is still useful for 
+diagnosing the model's behavior outside the training range.
+
+Q: What was your best classification model?
+A: Logistic Regression was selected. On the held-out test set it had the highest macro 
+F1 of 0.683, the highest Fraudulent recall of 0.789, and the highest Fraudulent PR-AUC 
+of 0.457. Random Forest had higher accuracy at 0.931, but its Fraudulent recall was 
+only 0.158, so it missed most fraud. Because fraud detection is the main objective, 
+Logistic Regression was the better choice.
+
+Q: Why is PR-AUC more appropriate than accuracy for fraud detection?
+A: A model that predicts every claim as legitimate could achieve about 94% accuracy while 
+detecting no fraud. PR-AUC focuses on the trade-off between finding fraudulent claims and 
+avoiding too many false alarms, so it reflects the minority class that matters most to 
+the business.
+
+Q: What is the trade-off between precision and recall in fraud detection?
+A: High recall catches more fraudulent claims but may send more legitimate claims for 
+manual review. High precision means flagged claims are more likely to be fraudulent but 
+may miss more fraud. The preferred balance depends on the relative financial cost of 
+missed fraud and unnecessary investigations.
+
+Q: Why was SMOTE placed inside the pipeline?
+A: SMOTE must be fitted only on each training fold. If it were applied before 
+cross-validation, synthetic examples could contain information related to validation 
+observations and produce overly optimistic scores.
+
+Q: What changed after tuning the classifier?
+A: Tuned Logistic Regression improved macro F1 from 0.683 to 0.726 and Fraudulent 
+precision from 0.300 to 0.378, but recall decreased from 0.789 to 0.737. It made fewer 
+false alarms but missed some additional fraud, so the correct choice depends on the 
+business costs.
+
+Q: Why was sampling_strategy=0.5 selected instead of fully balancing the classes?
+A: GridSearchCV found that generating fewer synthetic fraud cases worked better with 
+this Logistic Regression configuration. A value of 0.5 increases the minority class 
+to roughly half the majority-class size instead of forcing a 1:1 balance. This is a 
+model-selection result, not a universal rule.
+
+Q: Why is macro F1 useful here?
+A: Macro F1 calculates F1 separately for Legitimate and Fraudulent and gives both 
+classes equal weight. It prevents the large Legitimate class from hiding poor fraud 
+detection. Weighted F1 is less suitable as the main selection metric because the 
+majority class dominates its average.
+
+Q: Why can Random Forest have the highest accuracy but not be the best model?
+A: Accuracy is dominated by the 94% Legitimate class. Random Forest achieved 0.931 
+accuracy but detected only 15.8% of fraudulent claims. A fraud detector that misses 
+most fraud is not useful merely because its overall accuracy is high.
+
+Q: What is the precision-recall trade-off in your tuned model?
+A: The untuned model caught more fraud, with recall 0.789, but generated more false 
+alarms, with precision 0.300. The tuned model improved precision to 0.378 and 
+Fraudulent F1 to 0.500, but recall fell to 0.737. Tuning moved the balance toward 
+fewer false alarms.
+
+Q: What did the explainability methods agree on?
+A: Claim amount relative to policy limit and agent-flagged history repeatedly appeared 
+as important fraud signals. Agreement across odds ratios, permutation importance, 
+SHAP, and LIME makes the result more interpretable, although it still describes 
+association rather than causation.
+
+Q: Does SMOTE run when predicting a new claim?
+A: No. SMOTE only runs during fit on training data. During predict or predict_proba, 
+the new claim is transformed and passed to the classifier without creating synthetic 
+rows. The notebook demonstrated this by sending one claim through the reloaded 
+pipeline and receiving one prediction.
+
+Q: What would you improve next?
+A: I would compare repeated-fold stability, tune the operating threshold using the 
+cost of missed fraud versus manual review, confirm probability calibration after SMOTE, 
+and validate the model on real claims rather than relying only on synthetic data.
+
+==================================================
+3) WHAT WAS DONE - CLASSIFICATION NOTEBOOK
+==================================================
+Notebook: 202604_B1_Classification_InsuranceClaimFraud.ipynb
+
+A. Setup and data loading
+- Loaded required libraries and dataset.
+- Confirmed target claim_status and class labels.
+
+B. EDA
+- Split columns into numeric and categorical (excluding claim_id and target).
+- Computed summary stats and missingness profile.
+- Checked class imbalance:
+  - Legitimate about 94%
+  - Fraudulent about 6%
+- Visualized class distribution and numeric correlation heatmap.
+- Box plots for key predictors by class.
+
+C. Train/test split
+- Used 80/20 split with stratify=y to preserve class proportions.
+- Reason: realistic holdout and leakage prevention.
+
+D. Feature selection
+- On training data only:
+  - ANOVA F-test
+  - Mutual information
+  - RFECV with Logistic Regression + StratifiedKFold
+- Kept core informative numeric features and retained useful categorical variables.
+- Excluded claim_id as non-predictive identifier.
+
+E. Preprocessing pipeline
+- Structural missingness handling:
+  - police_report_filed missingness tied to claim/policy context.
+  - Replaced structural missing with "Not Applicable".
+- Numeric preprocessing:
+  - median imputation
+  - Yeo-Johnson for skewed variables
+  - scaling
+- Categorical preprocessing:
+  - most-frequent imputation
+  - one-hot encoding (handle_unknown="ignore")
+- Combined using ColumnTransformer.
+
+F. Class imbalance handling
+- Configured SMOTE to oversample minority fraud class.
+- Put SMOTE inside imblearn Pipeline so resampling happens inside each CV fold only.
+- This avoids leakage from synthetic samples into validation folds.
+
+G. Model comparison with stratified CV
+- Candidate models included:
+  - Logistic Regression
+  - Decision Tree
+  - Random Forest
+  - Gradient Boosting
+  - KNN
+  - Naive Bayes
+- Used StratifiedKFold (5 folds).
+- Evaluated with imbalance-aware metrics:
+  - ROC-AUC
+  - PR-AUC
+  - F1
+  - Precision
+  - Recall
+- Ranked models by PR-AUC (more informative than accuracy for 94/6 imbalance).
+- Produced leaderboard and PR-AUC comparison chart.
+
+H. Classification diagnostics
+- The two highest-ranked cross-validation models were Logistic Regression and Gradient Boosting.
+- Each was refit on all 1,280 training claims and evaluated on the untouched 320-claim test set.
+- Used confusion matrices, ROC curves, precision-recall curves, calibration curves, and classification reports.
+- Logistic Regression achieved Fraudulent precision 0.300, recall 0.789, and F1 0.435.
+- Gradient Boosting achieved Fraudulent precision 0.263, recall 0.263, and F1 0.263.
+- Logistic Regression caught more fraud, while Gradient Boosting produced fewer fraud detections and higher overall accuracy.
+- There were only about 19 fraudulent claims in the test set, so one or two claims can noticeably change the percentages.
+- The default 0.5 threshold is not necessarily optimal. A lower threshold could increase recall if missing fraud is more costly than manual review.
+
+I. Held-out test evaluation and model selection
+- Every candidate classifier was fitted on all training data and evaluated once on the untouched test set.
+- Accuracy was reported but was not the main selection criterion because Legitimate claims represent about 94% of the data.
+- Main results:
+  - Logistic Regression: accuracy 0.878, Fraudulent precision 0.300, recall 0.789, F1 0.435, macro F1 0.683, ROC-AUC 0.878, PR-AUC 0.457.
+  - Naive Bayes: accuracy 0.838, Fraudulent F1 0.333, macro F1 0.620, PR-AUC 0.316.
+  - Gradient Boosting: accuracy 0.912, Fraudulent F1 0.263, macro F1 0.608, PR-AUC 0.278.
+  - Decision Tree: accuracy 0.897, Fraudulent F1 0.267, macro F1 0.606, PR-AUC 0.113.
+  - Random Forest: accuracy 0.931, Fraudulent recall 0.158, Fraudulent F1 0.214, macro F1 0.589, PR-AUC 0.349.
+  - KNN: accuracy 0.822, Fraudulent F1 0.278, macro F1 0.588, PR-AUC 0.177.
+- Logistic Regression was selected because it had the highest macro F1 (0.683), highest Fraudulent recall (0.789), and highest Fraudulent PR-AUC (0.457).
+- The trade-off was low Fraudulent precision (0.300), meaning many flagged claims were legitimate. This was initially accepted because missed fraud can cause greater financial loss than extra manual reviews.
+
+J. Hyperparameter tuning
+- Tuned Logistic Regression with GridSearchCV using the same 5-fold StratifiedKFold scheme.
+- Tuned C, penalty, solver, class_weight, and the SMOTE sampling_strategy.
+- Used average precision (PR-AUC) as the tuning objective because it focuses on the minority Fraudulent class.
+- Searched 64 parameter combinations.
+- Best settings: C=1, penalty=L1, solver=liblinear, class_weight=None, sampling_strategy=0.5.
+- Best CV PR-AUC improved from approximately 0.530 to 0.553.
+- Held-out comparison:
+  - Untuned: accuracy 0.878, Fraudulent precision 0.300, recall 0.789, F1 0.435, macro F1 0.683, PR-AUC 0.457.
+  - Tuned: accuracy 0.912, Fraudulent precision 0.378, recall 0.737, F1 0.500, macro F1 0.726, PR-AUC 0.438.
+- Tuning improved precision, Fraudulent F1, macro F1, accuracy, and ROC-AUC, but reduced Fraudulent recall and held-out PR-AUC slightly.
+- This is a real precision-recall trade-off. The final threshold should depend on the business cost of missed fraud versus unnecessary investigations.
+
+K. Explainability
+- Used four methods on the tuned Logistic Regression model:
+  1. Logistic coefficients converted to odds ratios.
+  2. Permutation importance measured by change in test PR-AUC.
+  3. SHAP values for global and individual contributions.
+  4. LIME for a local explanation of the most suspicious test claim.
+- The methods converged on claim_amount_to_policy_limit_ratio and agent_flagged_history as important fraud signals.
+- The most suspicious test claim had predicted Fraudulent probability 0.991. LIME highlighted a high claim-to-policy-limit ratio, no witnesses, agent-flagged history, short policy tenure, and policy type.
+- Global explanations describe average model behavior; LIME explains one claim. None of these methods proves causation.
+
+L. Model persistence and inference
+- Saved the complete tuned imblearn pipeline using joblib, including preprocessing, tuned SMOTE with sampling_strategy=0.5, and tuned Logistic Regression.
+- A suspicious profile was predicted as Fraudulent with probability approximately 1.000.
+- A clean profile was predicted as Legitimate with probability approximately 1.000.
+- SMOTE is training-only. During predict(), the pipeline transforms the new claim but does not resample it; one input claim produces one output prediction.
+
+M. Classification limitations and responsible use
+- The test set contains only about 19 fraudulent claims, so metrics have high sampling uncertainty.
+- Fraud probability outputs should initially be treated as ranking scores until calibration is confirmed, because SMOTE changes the training class distribution.
+- The 0.5 threshold should be reviewed using business costs and possibly tuned separately from model parameters.
+- False positives create manual-review workload, while false negatives can create direct financial losses.
+- The model should flag claims for human investigation, not automatically reject claims without review.
+
+==================================================
+4) CORE DECISIONS YOU SHOULD BE READY TO DEFEND
+==================================================
+1. Why split first?
+Because anything learned from full data before splitting leaks test information and gives optimistic results.
+
+2. Why use pipelines/ColumnTransformer?
+To keep preprocessing consistent, reproducible, and leakage-safe during CV and future inference.
+
+3. Why treat structural missingness differently?
+Because those missings are meaningful (not random), so replacing them with generic statistics would distort signal.
+
+4. Why not use accuracy in fraud task?
+With 94/6 imbalance, a model can get high accuracy by predicting only the majority class. PR-AUC/recall/precision are better.
+
+5. Why put SMOTE inside CV pipeline?
+So synthetic samples are generated only from each training fold and never leak into validation data.
+
+6. What does RMSE = 6.698 mean?
+The model's typical prediction error is about 6.7 exam-score points, with larger errors affecting the score more heavily because RMSE squares the errors before averaging.
+
+7. What does R2 = 0.467 mean?
+The model explains about 46.7% of the variation in final exam scores on the held-out test set. The remaining variation is associated with factors not included in the dataset and normal prediction error.
+
+8. What is a residual?
+A residual is actual value minus predicted value. A good residual plot should have points roughly centered around zero without a clear curve or funnel pattern.
+
+9. What did the Breusch-Pagan result show?
+The low p-value of 0.0017 suggests heteroscedasticity: the spread of prediction errors changes across the fitted-score range. This is a limitation, not proof that the model is unusable.
+
+10. Why was Ridge selected when Linear Regression had a slightly lower RMSE?
+The differences were extremely small and the models were effectively tied. Ridge was selected because it performed strongly in cross-validation and regularization gives more stable coefficients if future data contains stronger correlation between predictors.
+
+11. What does alpha do in Ridge?
+Alpha controls the penalty applied to large coefficients. A larger alpha shrinks coefficients more strongly and can reduce overfitting, but too much shrinkage can cause underfitting.
+
+12. Why save the full pipeline rather than only Ridge?
+The model needs the same imputers, encoders, scaling, and target transformation at prediction time. Saving only Ridge would leave new raw records in the wrong format.
+
+13. Why can the raw prediction be above 100?
+Ridge is not inherently constrained to the target's 0-100 range. The notebook clips the displayed result to the valid exam-score range, while the raw model output is also shown for transparency.
+
+14. What is the difference between SHAP and permutation importance?
+SHAP explains how features contribute to individual predictions and overall predictions. Permutation importance measures how much test performance worsens when a feature is shuffled.
+
+==================================================
+5) SHORT ORAL SCRIPT (1-2 MINUTES)
+==================================================
+We implemented two leakage-safe machine learning workflows: one regression model for predicting student final exam scores and one classification model for detecting fraudulent insurance claims. In both, we first did EDA to understand distributions, missingness, and feature behavior. We then created train/test splits before feature selection and preprocessing to avoid leakage.
+
+For regression, we handled structural and random missingness separately, encoded categorical variables appropriately, transformed the skewed target with Yeo-Johnson, and compared multiple models using 5-fold CV with RMSE, MAE, and R2.
+
+For classification, we had strong class imbalance, so we used stratified splitting and SMOTE inside an imblearn pipeline. We compared multiple classifiers with stratified CV and evaluated using PR-AUC, ROC-AUC, precision, recall, and F1, ranking by PR-AUC because the minority fraud class is the business-critical class.
+
+Overall, the key strengths are reproducible pipelines, leakage control, and metric choices aligned with each problem type.
+
+==================================================
+6) COMMON VIVA QUESTIONS + QUICK ANSWERS
+==================================================
+Q: What is data leakage in your context?
+A: Leakage is when test/validation information influences training steps, giving inflated scores. We prevented it by splitting first and fitting transforms/selection only on training folds.
+
+Q: Why Yeo-Johnson transformation?
+A: It reduces skewness and is safer than Box-Cox when data can include zero or non-strictly-positive values.
+
+Q: Why stratified split/CV in classification?
+A: Because fraud is rare, stratification keeps class proportions stable in each split/fold.
+
+Q: Why remove ID columns?
+A: IDs do not represent causal/predictive behavior and can cause memorization patterns, not generalization.
+
+Q: Why use PR-AUC as ranking metric?
+A: In highly imbalanced data, PR-AUC focuses on minority-class detection quality, unlike accuracy.
+
+==================================================
+7) FINAL ONE-LINE SUMMARY
+==================================================
+This lab demonstrates end-to-end, leakage-safe, reproducible modeling for both regression and imbalanced classification, with preprocessing and evaluation decisions justified by data behavior and business objective.
